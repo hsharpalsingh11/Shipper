@@ -2,6 +2,7 @@ package com.example.singh.shipper;
 
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Build;
@@ -11,14 +12,24 @@ import android.support.annotation.RequiresApi;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
+import android.view.View;
 import android.widget.Toast;
 
 import com.example.singh.shipper.Common.Common;
+import com.example.singh.shipper.Model.Request;
+import com.example.singh.shipper.Model.Token;
+import com.example.singh.shipper.ViewHolder.OrderViewHolder;
+import com.firebase.ui.database.FirebaseRecyclerAdapter;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.iid.FirebaseInstanceId;
 
 public class HomeActivity extends AppCompatActivity {
     FusedLocationProviderClient fusedLocationProviderClient;
@@ -26,6 +37,14 @@ public class HomeActivity extends AppCompatActivity {
     LocationRequest locationRequest;
 
     Location mLastLocation;
+
+    RecyclerView recyclerView;
+    RecyclerView.LayoutManager layoutManager;
+
+    FirebaseDatabase database;
+    DatabaseReference shipperOrders;
+
+    FirebaseRecyclerAdapter<Request,OrderViewHolder> adapter;
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
@@ -47,6 +66,73 @@ public class HomeActivity extends AppCompatActivity {
             fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
             fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
         }
+
+        //Init Firebase
+        database = FirebaseDatabase.getInstance();
+        shipperOrders = database.getReference(Common.ORDER_NEED_SHIP_TABLE);
+
+        //Views
+        recyclerView = (RecyclerView)findViewById(R.id.recyclerOrders);
+        recyclerView.setHasFixedSize(true);
+        layoutManager = new LinearLayoutManager(this);
+        recyclerView.setLayoutManager(layoutManager);
+        
+        updateTokenShipper(FirebaseInstanceId.getInstance().getToken());
+        loadAllOrderNeedShip(Common.ORDER_NEED_SHIP_TABLE);
+    }
+
+    private void loadAllOrderNeedShip(String orderNeedShipTable)
+    {
+        DatabaseReference reference = shipperOrders.child(Common.currentShipper.getPhone());
+        adapter = new FirebaseRecyclerAdapter<Request, OrderViewHolder>
+                (
+                        Request.class,
+                        R.layout.order_view_layout,
+                        OrderViewHolder.class,
+                        reference
+                ) {
+            @Override
+            protected void populateViewHolder(OrderViewHolder viewHolder, Request model, int position)
+            {
+                viewHolder.txtOrderId.setText(adapter.getRef(position).getKey());
+                viewHolder.txtOrderStatus.setText(Common.convertCodeToStatus(model.getStatus()));
+                viewHolder.txtOrderAddress.setText(model.getAddress());
+                viewHolder.txtOrderPhone.setText(model.getPhone());
+                viewHolder.txtDate.setText(Common.getDate( Long.parseLong( adapter.getRef(position).getKey() ) ));
+                viewHolder.btnShipping.setOnClickListener( new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                       // showUpdateDialog(adapter.getRef(position).getKey(),adapter.getItem(position));
+                        Toast.makeText(HomeActivity.this, "kjv", Toast.LENGTH_SHORT).show();
+                    }
+                } );
+
+
+                    }
+                };
+
+        adapter.notifyDataSetChanged();
+        recyclerView.setAdapter(adapter);
+
+
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadAllOrderNeedShip(Common.currentShipper.getPhone());
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+    }
+
+    private void updateTokenShipper(String token)
+    {
+        DatabaseReference tokens = database.getReference("Tokens");
+        Token data = new Token(token, false);
+        tokens.child(Common.currentShipper.getPhone()).setValue(data);
     }
 
     @Override
